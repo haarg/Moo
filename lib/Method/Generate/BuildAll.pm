@@ -30,13 +30,30 @@ sub _handle_subbuild {
 
 sub buildall_body_for {
   my ($self, $into, $me, $args) = @_;
-  my @builds =
-    grep *{_getglob($_)}{CODE},
-    map "${_}::BUILD",
-    reverse @{mro::get_linear_isa($into)};
-  '    (('.$args.')[0]->{__no_BUILD__} or ('."\n"
-  .join('', map qq{      ${me}->${_}(${args}),\n}, @builds)
-  ."    )),\n";
+  my @builds;
+  require Moo;
+  for my $class (@{mro::get_linear_isa($into)}) {
+    if ($class eq 'Moo::Object') {
+      last;
+    }
+    my $new = *{_getglob("${class}::new")}{CODE};
+    if (!defined $new) {
+    }
+    elsif (my $defer_target = (Sub::Defer::defer_info($new)||[])->[0]) {
+      my ($pkg) = ($defer_target =~ /^(.*)::[^:]+$/);
+      if (!$Moo::MAKERS{$pkg}) {
+        last;
+      }
+    }
+    else {
+      last;
+    }
+    my $build = "${class}::BUILD";
+    if (*{_getglob($build)}{CODE}) {
+      unshift @builds, $build;
+    }
+  }
+  join '', map qq{    ${me}->${_}(${args});\n}, @builds;
 }
 
 1;
