@@ -470,11 +470,6 @@ sub _wrap_attr_exception {
   my ($self, $name, $step, $arg, $code, $want_return) = @_;
   my $prefix = quotify("${step} for "._attr_desc($name, $arg).' failed: ');
   "do {\n"
-  .'  local $Method::Generate::Accessor::CurrentAttribute = {'."\n"
-  .'    init_arg => '.quotify($arg).",\n"
-  .'    name     => '.quotify($name).",\n"
-  .'    step     => '.quotify($step).",\n"
-  ."  };\n"
   .($want_return ? '  (my $_return),'."\n" : '')
   .'  (my $_error), (my $_old_error = $@);'."\n"
   ."  (eval {\n"
@@ -484,7 +479,16 @@ sub _wrap_attr_exception {
   .$code."),\n"
   ."    1\n"
   ."  } or\n"
-  .'    $_error = CORE::ref $@ ? $@ : '.$prefix.'.$@);'."\n"
+  .'    $_error = CORE::ref $@ ? do {'."\n"
+  .'      if (Scalar::Util::blessed $@ && $@->can("_attribute_data")) {'."\n"
+  .'        $@->_attribute_data('."\n"
+  .'          init_arg => '.quotify($arg).",\n"
+  .'          name     => '.quotify($name).",\n"
+  .'          step     => '.quotify($step).",\n"
+  .'        );'."\n"
+  .'      }'."\n"
+  .'      $@;'."\n"
+  .'    } : '.$prefix.'.$@);'."\n"
   .'  ($@ = $_old_error),'."\n"
   .'  (defined $_error and CORE::die $_error);'."\n"
   .($want_return ? '  $_return;'."\n" : '')
